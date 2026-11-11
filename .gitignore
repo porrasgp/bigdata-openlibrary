@@ -1,5 +1,5 @@
-# Datos grandes: nunca se suben al repositorio
-data/
+# Datos grandes: nunca se suben al repositorio (data/README.md sí, ver abajo)
+data/*
 *.txt.gz
 
 # Salidas de Spark y HDFS locales
@@ -18,3 +18,6 @@ __pycache__/
 # Java / Hadoop locales
 *.log
 hadoop-*/
+
+# Excepción: este README sí se publica
+!data/README.md

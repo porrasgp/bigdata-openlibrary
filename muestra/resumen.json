@@ -1,0 +1,10 @@
+{
+  "obras": 200,
+  "ediciones": 1507,
+  "autores": 381,
+  "valoraciones": 47443,
+  "lecturas": 1160547,
+  "ediciones_por_obra_maximo": 8,
+  "fuente_eventos": "dumps 2026-10-31",
+  "fuente_registros": "API pública de Open Library (estado actual)"
+}

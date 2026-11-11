@@ -30,7 +30,7 @@ echo "== Hadoop"
 comprobar "hadoop en PATH" command -v hadoop
 comprobar "Versión 3.5.x" bash -c 'hadoop version 2>/dev/null | head -1 | grep -q "Hadoop 3\.5"'
 comprobar "HDFS responde (hdfs dfs -ls /)" hdfs dfs -ls /
-comprobar "Interfaz web del NameNode en 9870" bash -c 'curl -s -o /dev/null -w "%{http_code}" http://localhost:9870 | grep -q 200'
+comprobar "Interfaz web del NameNode en 9870" bash -c 'curl -sL -o /dev/null -w "%{http_code}" http://localhost:9870 | grep -q 200'
 
 echo "== PostgreSQL"
 comprobar "psql en PATH" command -v psql

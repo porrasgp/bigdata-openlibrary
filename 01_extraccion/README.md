@@ -1,102 +1,78 @@
 # 01 · Extracción
 
-Objetivo: obtener los dumps de Open Library con una fecha fija y verificar que llegaron completos.
+## Qué contiene esta carpeta
 
-## Fuente
+| Archivo | Para qué sirve | Tiempo aprox. |
+|---|---|---|
+| `descargar_dumps.sh` | Descarga los dumps con fecha fija y verifica tamaño y SHA-256 | 1 a 3 horas (17.6 GB) |
+| `construir_muestra.py` | Construye la muestra coherente de `muestra/` desde la API pública | 10 a 15 minutos |
+| `convertir_a_csv.py` | Convierte los dumps (TSV con JSON) a CSV plano | Horas con dumps completos |
 
-- Portal: https://openlibrary.org/developers/dumps
-- Snapshot del curso: **2026-10-31**
-- Licencia: CC0 1.0. Puedes reutilizar y redistribuir los datos sin restricciones.
+## Qué se hizo
 
-| Archivo | Tamaño esperado |
-|---|---|
-| `ol_dump_editions_2026-10-31.txt.gz` | 12 630 804 778 bytes (12.6 GB) |
-| `ol_dump_works_2026-10-31.txt.gz` | 4 078 855 962 bytes (4.1 GB) |
-| `ol_dump_authors_2026-10-31.txt.gz` | 784 183 875 bytes (0.8 GB) |
-| `ol_dump_ratings_2026-10-31.txt.gz` | 9 422 757 bytes (9 MB) |
-| `ol_dump_reading-log_2026-10-31.txt.gz` | 125 242 203 bytes (125 MB) |
+1. **Verificamos las URLs y tamaños** de los dumps de la fecha 2026-10-31. El tamaño total comprimido es de 17.6 GB; la página oficial indicaba cifras antiguas.
+2. **Descargador con verificación**: comprueba el tamaño contra el servidor, reanuda descargas cortadas y guarda el SHA-256 en `data/raw/manifiesto_2026-10-31.tsv`. Lo probamos con `ratings` y `reading-log`, y el hash coincide con el manifiesto.
+3. **Muestra coherente**: las primeras líneas de cada dump no sirven, porque las obras, ediciones y autores de la muestra no se referían entre sí y las tablas de relación quedaban vacías. La muestra actual toma las 200 obras con más valoraciones y lecturas en los dumps completos, y trae de la API sus ediciones y autores. Resultado: 200 obras, 1 507 ediciones, 381 autores, 47 443 valoraciones y 1 160 547 lecturas, sin ninguna clave rota.
+4. **Conversor a CSV**: convierte cada dump a CSV plano, con los campos del JSON como columnas. Usa solo la biblioteca estándar de Python, así que no necesita Spark.
 
-## Formato
+## Qué necesitas para ejecutarlo
 
-Archivos TSV sin cabecera. Hay dos formatos:
+- Entorno del curso cargado (`source ../00_setup/env.sh`) para `descargar_dumps.sh`: solo necesita `curl`, `gzip` y `sha256sum`.
+- Python 3.11 o superior para los scripts `.py`. No necesitan Spark.
+- Conexión a internet. Los dumps pesan 17.6 GB; con 10 Mbps tardan unas 4 horas.
+- Espacio: unos 20 GB para los dumps y 60 MB para la muestra.
 
-**editions, works, authors** (5 columnas):
-
-```
-type <TAB> key <TAB> revision <TAB> last_modified <TAB> JSON
-/type/edition <TAB> /books/OL10000008M <TAB> 3 <TAB> 2026-01-03T18:14:02 <TAB> {"title": "...", ...}
-```
-
-**ratings** (4 columnas): `obra <TAB> edición <TAB> valoración <TAB> fecha`
-
-```
-/works/OL1629179W <TAB> /books/OL22981670M <TAB> 5 <TAB> 2018-06-20
-```
-
-**reading-log** (4 columnas): `obra <TAB> edición <TAB> estado <TAB> fecha`
-
-```
-/works/OL3910802W <TAB> \N <TAB> Already Read <TAB> 2026-08-28
-```
-
-Notas:
-- `\N` es un nulo (la edición no está asociada). Hay que tratarlo en la limpieza de la semana 2.
-- Ejemplos de `key`: `/books/OL1M`, `/works/OL45883W`, `/authors/OL23919A`.
-- Los JSON pueden tener cientos de bytes o varios KB; por eso el tamaño descomprimido es mucho mayor que el comprimido.
-
-## Uso
+## Cómo ejecutarlo
 
 ```bash
-# Muestra rápida (~50 000 líneas por dump, sin bajar todo):
-./descargar_dumps.sh --solo-muestra
+cd ~/bigdata-openlibrary/01_extraccion
 
-# Descarga completa (~17.6 GB; se puede reanudar si se corta):
-./descargar_dumps.sh
+# 1. Dumps completos (todos, o solo algunos):
+./descargar_dumps.sh                       # los 5 dumps
+./descargar_dumps.sh ratings reading-log   # solo los pequeños (~135 MB)
+
+# 2. Muestra coherente (necesita ratings y reading-log descargados):
+python3 construir_muestra.py                # 200 obras, 8 ediciones por obra
+python3 construir_muestra.py --obras 50     # más rápido, para probar
+
+# 3. CSV para explorar con pandas, Excel o LibreOffice:
+python3 convertir_a_csv.py --todo ../muestra --salida ../muestra/csv
+python3 convertir_a_csv.py --todo ../data/raw --salida ../data/csv   # dumps completos (lento)
 ```
 
-Los archivos quedan en `data/raw/` y el manifiesto con SHA-256 en `data/raw/manifiesto_2026-10-31.tsv`.
-
-Para comprobar la integridad más tarde:
+Para verificar que los dumps descargados son íntegros:
 
 ```bash
 cd ../data/raw
 sha256sum -c <(awk -F'\t' 'NR>1{print $3"  "$1}' manifiesto_2026-10-31.tsv)
 ```
 
-## Notas
+## Qué debes entender
 
-- Si la descarga tarda demasiado, el portal ofrece torrents en el Internet Archive (`archive.org/details/ol_exports`).
-- Tus alumnos pueden compartir una copia verificada en lugar de descargar cada uno. La comparación del manifiesto sirve para confirmar que es idéntica.
+**Formato de los dumps.** Son archivos TSV sin cabecera:
 
-## Conversión a CSV
+- `editions`, `works`, `authors`: `tipo <TAB> clave <TAB> revision <TAB> fecha <TAB> JSON`.
+- `ratings`: `obra <TAB> edicion <TAB> valoracion <TAB> fecha` (sin usuario).
+- `reading-log`: `obra <TAB> edicion <TAB> estado <TAB> fecha`.
 
-Los dumps originales son TSV con JSON dentro de una columna. Para trabajar con CSV plano:
+`\N` marca un nulo. El JSON va dentro de la última columna; eso obliga a parsearlo en la limpieza.
 
-```bash
-# Muestra (ya incluida en el repositorio en muestra/csv/):
-python3 01_extraccion/convertir_a_csv.py --todo muestra --salida muestra/csv
+**Por qué la verificación de hash.** Si dos alumnos descargan el "mismo" dump y tienen hashes distintos, sus resultados no se pueden comparar. La fecha fija (2026-10-31) y el manifiesto garantizan que todos trabajan con los mismos datos.
 
-# Dumps completos (después de descargarlos):
-python3 01_extraccion/convertir_a_csv.py --todo data/raw --salida data/csv
-```
+**Por qué una muestra y no solo los dumps.** Para probar un pipeline no hace falta procesar 17 GB; con pocos megabytes ya aparecen muchos errores de código. Pero la muestra tiene que ser coherente: si una valoración apunta a una obra que no está en la muestra, la prueba de integridad referencial falla por una razón que no es un error del código.
 
-Columnas de salida:
+**Por qué la API y no solo los dumps para la muestra.** La API devuelve el estado actual de cada registro, y los dumps son de una fecha fija. La muestra no es idéntica al dump de 2026-10-31, pero es consistente consigo misma. Está escrito en `muestra/resumen.json`.
 
-| Archivo CSV | Columnas |
-|---|---|
-| `editions.csv` | clave, revision, ultima_modificacion, titulo, subtitulo, fecha_publicacion, editoriales, isbn_10, isbn_13, paginas, formato_fisico, idiomas, autores_claves, obras_claves, temas, num_portadas |
-| `works.csv` | clave, revision, ultima_modificacion, titulo, subtitulo, fecha_primera_publicacion, autores_claves, temas, num_portadas, descripcion |
-| `authors.csv` | clave, revision, ultima_modificacion, nombre, nombre_personal, fecha_nacimiento, fecha_muerte, nombres_alternativos |
-| `ratings.csv` | obra_clave, edicion_clave, valoracion, fecha |
-| `reading-log.csv` | obra_clave, edicion_clave, estado, fecha |
+**Respeto a la API.** `construir_muestra.py` identifica su User-Agent, espera 0.5 s entre peticiones, reintenta con espera si el servidor responde 429 o 5xx, y guarda cada respuesta en `data/cache_api/` para no volver a pedir lo mismo. `robots.txt` no prohíbe `/works/` ni `/authors/`. No uses `/api` ni `/search`, que sí están prohibidos.
 
-Reglas:
-- Las claves (`/books/OL...M`, `/works/OL...W`, `/authors/OL...A`) se conservan completas, así que los joins entre tablas funcionan sin transformaciones.
-- Los valores múltiples (temas, editoriales, ISBN, autores) van separados por `|`.
-- Los nulos (`\N` y campos ausentes) quedan como celda vacía.
-- Los campos de texto (títulos, descripciones) pueden llevar comas, comillas o saltos de línea; el CSV los escapa según RFC 4180.
-- Los campos del JSON no presentes en un registro quedan vacíos. El script no los rellena.
-- El script no lee JSON completo en memoria: procesa línea por línea.
-- Las filas que no tienen el formato esperado se cuentan como descartadas. En la muestra no se descarta ninguna.
+**Licencia.** Los datos son CC0 1.0 (dominio público), así que pueden copiarse y redistribuirse. Cítalos de todos modos.
 
-Limitación: el conversor usa solo la biblioteca estándar, así que los 12.6 GB de `editions` tardarán bastante. Para el volumen completo, la semana 2 lo hace en PySpark.
+## Problemas frecuentes
+
+| Síntoma | Causa | Solución |
+|---|---|---|
+| `Tamaño incorrecto` al descargar | Descarga interrumpida | Vuelve a ejecutar el script: continúa desde donde quedó |
+| `No se pudo obtener el tamaño` | Sin internet o servidor caído | Revisa la conexión y reintenta más tarde |
+| `Falta .../ol_dump_ratings_...` al construir la muestra | No descargaste los dumps | `./descargar_dumps.sh ratings reading-log` |
+| La muestra tarda mucho | Limitación de la API (0.5 s por petición) | Usa `--obras 50` para probar |
+| `HTTP 429` en la consola | Demasiadas peticiones | El script espera y reintenta solo |
