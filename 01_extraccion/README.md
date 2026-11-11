@@ -67,3 +67,36 @@ sha256sum -c <(awk -F'\t' 'NR>1{print $3"  "$1}' manifiesto_2026-10-31.tsv)
 
 - Si la descarga tarda demasiado, el portal ofrece torrents en el Internet Archive (`archive.org/details/ol_exports`).
 - Tus alumnos pueden compartir una copia verificada en lugar de descargar cada uno. La comparación del manifiesto sirve para confirmar que es idéntica.
+
+## Conversión a CSV
+
+Los dumps originales son TSV con JSON dentro de una columna. Para trabajar con CSV plano:
+
+```bash
+# Muestra (ya incluida en el repositorio en muestra/csv/):
+python3 01_extraccion/convertir_a_csv.py --todo muestra --salida muestra/csv
+
+# Dumps completos (después de descargarlos):
+python3 01_extraccion/convertir_a_csv.py --todo data/raw --salida data/csv
+```
+
+Columnas de salida:
+
+| Archivo CSV | Columnas |
+|---|---|
+| `editions.csv` | clave, revision, ultima_modificacion, titulo, subtitulo, fecha_publicacion, editoriales, isbn_10, isbn_13, paginas, formato_fisico, idiomas, autores_claves, obras_claves, temas, num_portadas |
+| `works.csv` | clave, revision, ultima_modificacion, titulo, subtitulo, fecha_primera_publicacion, autores_claves, temas, num_portadas, descripcion |
+| `authors.csv` | clave, revision, ultima_modificacion, nombre, nombre_personal, fecha_nacimiento, fecha_muerte, nombres_alternativos |
+| `ratings.csv` | obra_clave, edicion_clave, valoracion, fecha |
+| `reading-log.csv` | obra_clave, edicion_clave, estado, fecha |
+
+Reglas:
+- Las claves (`/books/OL...M`, `/works/OL...W`, `/authors/OL...A`) se conservan completas, así que los joins entre tablas funcionan sin transformaciones.
+- Los valores múltiples (temas, editoriales, ISBN, autores) van separados por `|`.
+- Los nulos (`\N` y campos ausentes) quedan como celda vacía.
+- Los campos de texto (títulos, descripciones) pueden llevar comas, comillas o saltos de línea; el CSV los escapa según RFC 4180.
+- Los campos del JSON no presentes en un registro quedan vacíos. El script no los rellena.
+- El script no lee JSON completo en memoria: procesa línea por línea.
+- Las filas que no tienen el formato esperado se cuentan como descartadas. En la muestra no se descarta ninguna.
+
+Limitación: el conversor usa solo la biblioteca estándar, así que los 12.6 GB de `editions` tardarán bastante. Para el volumen completo, la semana 2 lo hace en PySpark.

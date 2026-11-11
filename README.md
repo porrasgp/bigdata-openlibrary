@@ -19,7 +19,10 @@ Snapshot fijo: **2026-10-31**. Todos los alumnos usan la misma fecha.
 | reading-log | 125 MB | Estado de lectura por obra |
 | **Total** | **~17.6 GB** | |
 
-Los datos completos no se suben al repositorio (ver `.gitignore`). Descárgalos con `01_extraccion/descargar_dumps.sh`. La carpeta `muestra/` contiene un subconjunto pequeño para probar el pipeline sin descargar todo.
+Los datos completos no se suben al repositorio (ver `.gitignore`). Descárgalos con `01_extraccion/descargar_dumps.sh`. La carpeta `muestra/` contiene un subconjunto pequeño para probar el pipeline sin descargar todo. Los datos se usan en dos formatos:
+
+- `muestra/*.tsv.gz`: copia del formato original de los dumps.
+- `muestra/csv/*.csv`: el mismo contenido en CSV plano, con los campos del JSON como columnas. Es el formato de trabajo del curso. El conversor está en `01_extraccion/convertir_a_csv.py`.
 
 ## Requisitos de la VM
 
