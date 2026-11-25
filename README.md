@@ -25,7 +25,9 @@ bash ejecutar_todo_completo.sh
 3. `etl/01_bronze.py`, `etl/02_silver.py`, `etl/03_gold.py`.
 4. `hdfs/cargar_gold.sh` → `/medallion/gold/fecha=FECHA/`.
 5. `postgres/cargar_gold.py --reiniciar` → esquema `estrella`.
-6. `psql -f sql/verificar.sql` y `psql -f sql/consultas.sql`.
+6. `"$PGBIN/psql" -v ON_ERROR_STOP=1 -d "$PGDATABASE" -f sql/verificar.sql` y el mismo con `sql/consultas.sql`.
+
+Para ejecutar comandos a mano en otra terminal, primero carga el entorno: `source entorno.sh && ol_detectar_venv "pyspark, psycopg" && ol_detectar_pg`. Así `python3` usa el venv y `psql` está en `PATH`.
 
 La fecha del snapshot se puede fijar:
 

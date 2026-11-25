@@ -11,12 +11,17 @@ Los archivos de esta carpeta se usan después de cargar el gold en PostgreSQL.
 ## Ejecución manual
 
 ```bash
-psql -v ON_ERROR_STOP=1 -f sql/ddl.sql        # normalmente lo hace cargar_gold.py
-psql -v ON_ERROR_STOP=1 -f sql/verificar.sql
-psql -v ON_ERROR_STOP=1 -f sql/consultas.sql
+# Desde la raiz del repo
+source entorno.sh
+ol_detectar_venv "psycopg"
+ol_detectar_pg
+
+"$PGBIN/psql" -v ON_ERROR_STOP=1 -d "$PGDATABASE" -f sql/ddl.sql  # normalmente lo hace cargar_gold.py
+"$PGBIN/psql" -v ON_ERROR_STOP=1 -d "$PGDATABASE" -f sql/verificar.sql
+"$PGBIN/psql" -v ON_ERROR_STOP=1 -d "$PGDATABASE" -f sql/consultas.sql
 ```
 
-Si ejecutas `ddl.sql` después de una carga, usa un esquema vacío o añade `--reiniciar` a `python3 postgres/cargar_gold.py`; las tablas no se sobrescriben solas.
+Si ejecutas `ddl.sql` después de una carga, usa un esquema vacío o añade `--reiniciar` a `"$VENV/bin/python3" postgres/cargar_gold.py`; las tablas no se sobrescriben solas.
 
 ## Preguntas que responden las consultas
 

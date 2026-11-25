@@ -17,8 +17,8 @@ Aquí no hay código: el proyecto es tu propio repositorio, construido a partir 
 ## Qué necesitas para empezar
 
 1. Haber ejecutado `bash ejecutar_todo.sh` (CSV → bronze → silver → gold).
-2. Haber ejecutado `bash hdfs/cargar_gold.sh` y `python3 postgres/cargar_gold.py --reiniciar`.
-3. Haber probado `psql -f sql/verificar.sql` y `psql -f sql/consultas.sql`.
+2. Haber ejecutado `bash hdfs/cargar_gold.sh` y `"$VENV/bin/python3" postgres/cargar_gold.py --reiniciar`.
+3. Haber probado `"$PGBIN/psql" -f sql/verificar.sql` y `"$PGBIN/psql" -f sql/consultas.sql` (tras `source entorno.sh` y `ol_detectar_pg`).
 4. Leer el [manual PDF](../manual/manual.pdf) para saber cómo ejecutar todo a mano.
 
 El flujo completo también se puede lanzar con:

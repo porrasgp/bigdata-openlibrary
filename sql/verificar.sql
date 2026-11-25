@@ -1,5 +1,5 @@
 -- Verificación mínima después de cargar el gold.
--- Uso: psql -v ON_ERROR_STOP=1 -f sql/verificar.sql
+-- Uso: "$PGBIN/psql" -v ON_ERROR_STOP=1 -d "$PGDATABASE" -f sql/verificar.sql
 
 \echo === Conteo de tablas (valores esperados en la muestra) ===
 SELECT 'dim_obra' AS tabla, count(*) AS filas FROM estrella.dim_obra

@@ -9,12 +9,19 @@ Esta carpeta contiene el cargador PostgreSQL del proyecto. Toma los CSV de `data
 ## Uso manual
 
 ```bash
-# Necesita psycopg: pip install -r requirements.txt
-python3 postgres/cargar_gold.py --reiniciar
+# Desde la raiz del repo; entorno.sh detecta venv y binarios de PostgreSQL
+source entorno.sh
+ol_detectar_venv "psycopg"
+ol_detectar_pg
+ol_asegurar_postgres
+ol_asegurar_roles_pg
+
+# No uses el python3 del sistema: no tiene psycopg
+"$VENV/bin/python3" postgres/cargar_gold.py --reiniciar
 
 # Verificación y consultas
-psql -v ON_ERROR_STOP=1 -f sql/verificar.sql
-psql -v ON_ERROR_STOP=1 -f sql/consultas.sql
+"$PGBIN/psql" -v ON_ERROR_STOP=1 -d "$PGDATABASE" -f sql/verificar.sql
+"$PGBIN/psql" -v ON_ERROR_STOP=1 -d "$PGDATABASE" -f sql/consultas.sql
 ```
 
 `--reiniciar` borra y recrea el esquema `estrella`, así que el proceso es repetible. Sin esa opción, si las tablas ya existen el script avisa para evitar borrar datos por accidente.

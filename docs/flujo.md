@@ -78,9 +78,9 @@ flowchart TD
     E0 --> E1["1. Asegurar HDFS y PostgreSQL"]
     E1 --> N["2. bash ejecutar_todo.sh<br/>bronze -> silver -> gold"]
     N --> E2["3. bash hdfs/cargar_gold.sh FECHA"]
-    E2 --> E3["4. python3 postgres/cargar_gold.py --reiniciar"]
-    E3 --> E4["5. psql -f sql/verificar.sql"]
-    E4 --> E5["6. psql -f sql/consultas.sql"]
+    E2 --> E3["4. $VENV/bin/python3 postgres/cargar_gold.py --reiniciar"]
+    E3 --> E4["5. $PGBIN/psql -f sql/verificar.sql"]
+    E4 --> E5["6. $PGBIN/psql -f sql/consultas.sql"]
     E5 --> E6["7. Resultados en pantalla y /tmp/opencode/consultas.out"]
 ```
 
@@ -95,9 +95,9 @@ head data/gold/resumen_valoraciones_anio.csv
 # HDFS
 bash hdfs/reportar_hdfs.sh
 
-# PostgreSQL
-psql -v ON_ERROR_STOP=1 -f sql/verificar.sql
-psql -v ON_ERROR_STOP=1 -f sql/consultas.sql
+# PostgreSQL (tras source entorno.sh && ol_detectar_venv "pyspark, psycopg" && ol_detectar_pg)
+"$PGBIN/psql" -v ON_ERROR_STOP=1 -d "$PGDATABASE" -f sql/verificar.sql
+"$PGBIN/psql" -v ON_ERROR_STOP=1 -d "$PGDATABASE" -f sql/consultas.sql
 ```
 
 Para la explicación paso a paso, consulta el [manual PDF](../manual/manual.pdf). Para la teoría de las capas, lee [medallion.md](medallion.md).

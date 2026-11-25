@@ -70,27 +70,45 @@ El archivo requirements.txt contiene:
 
 Los scripts detectan Java, Hadoop, el venv y los binarios de PostgreSQL de forma automática, y preparan lo que falte: venv, PGDATA, rol/base y directorios HDFS. Si tu instalacion esta en otras rutas, usa variables de override:
 
-    export OL_JAVA_HOME=/ruta/al/jdk-17
-    export OL_HADOOP_HOME=/ruta/al/hadoop-3.5.0
-    export OL_VENV=/ruta/al/venv
-    export OL_PGBIN=/ruta/al/postgresql/bin
-    export OL_PGDATA=/ruta/al/pgdata
-    export OL_PGADMIN=postgres
-    export OL_PGSOCKET=/tmp
-    export OL_HDFS_DATA_DIR=/ruta/al/hdfs
-    export PGHOST=localhost
-    export PGPORT=5432
-    export PGUSER=tu_usuario
-    export PGDATABASE=tu_usuario
+    # Ejemplos: solo si tus rutas son distintas; NO copies estos valores tal cual.
+    # export OL_JAVA_HOME=/ruta/al/jdk-17
+    # export OL_HADOOP_HOME=/ruta/al/hadoop-3.5.0
+    # export OL_VENV=/ruta/al/venv
+    # export OL_PGBIN=/ruta/al/postgresql/bin
+    # export OL_PGDATA=/ruta/al/pgdata
+    # export OL_PGADMIN=postgres
+    # export OL_PGSOCKET=/tmp
+    # export OL_HDFS_DATA_DIR=/ruta/al/hdfs
+    # export PGHOST=localhost
+    # export PGPORT=5432
+    # export PGUSER=tu_usuario
+    # export PGDATABASE=tu_usuario
 
-No hace falta exportarlas si todo esta en las rutas habituales. Para ver que se detecto, puedes hacer:
+No hace falta exportarlas si todo esta en las rutas habituales. En esta maquina la deteccion da:
+
+    Java:       /home/datalab/Desktop/opt/jdk-17.0.21+9
+    Hadoop:     /home/datalab/Desktop/opt/hadoop-3.5.0
+    Venv:       /home/datalab/Desktop/venv-bigdata
+    PGBIN:      /home/datalab/Desktop/venv-pgtest/lib/python3.12/site-packages/pgserver/pginstall/bin
+    PGDATA:     /home/datalab/pgdata  (enlace a /home/datalab/Desktop/opt/pgdata)
+    PGUSER:     datalab
+    PGDATABASE: datalab
+
+Importante: los bloques con /ruta/al/... son solo ejemplos. No los copies tal cual.
+
+Para ver que se detecto, y dejar la terminal lista para los demas pasos, ejecuta esto UNA VEZ en cada terminal:
 
     source entorno.sh
     ol_detectar_java
     ol_detectar_hadoop
     ol_detectar_venv "pyspark, psycopg"
     ol_detectar_pg
+    ol_asegurar_hdfs
+    ol_asegurar_postgres
+    ol_asegurar_roles_pg
     ol_resumen_entorno
+
+Despues de ese bloque, usa "$VENV/bin/python3" y "$PGBIN/psql". Si abres otra terminal, repite el bloque.
 
 entorno.sh solo define funciones: no modifica nada al hacer source. Las funciones ol_detectar_* y ol_asegurar_* si crean lo que falta cuando se invocan.
 
@@ -100,11 +118,11 @@ Forma abreviada, desde la raiz del repo:
 
     bash ejecutar_todo.sh
 
-Forma paso a paso (util en clase, para ver cada capa):
+Forma paso a paso (util en clase, para ver cada capa). Requiere el bloque de la seccion 3, o al menos `source entorno.sh && ol_detectar_venv "pyspark"`:
 
-    python3 etl/01_bronze.py
-    python3 etl/02_silver.py
-    python3 etl/03_gold.py
+    "$VENV/bin/python3" etl/01_bronze.py
+    "$VENV/bin/python3" etl/02_silver.py
+    "$VENV/bin/python3" etl/03_gold.py
 
 Siempre en ese orden: bronze -> silver -> gold.
 
@@ -161,8 +179,9 @@ Dentro estan los cinco CSV del gold. El script:
 
 No hace falta hacerlo a mano: ol_asegurar_hdfs ya lo hace. Si aun asi quieres arrancarlo manualmente:
 
-    export JAVA_HOME=/ruta/al/jdk-17
-    export HADOOP_HOME=/ruta/al/hadoop-3.5.0
+    # Solo si ol_detectar_java / ol_detectar_hadoop no funcionan:
+    export JAVA_HOME=/home/datalab/Desktop/opt/jdk-17.0.21+9
+    export HADOOP_HOME=/home/datalab/Desktop/opt/hadoop-3.5.0
     export HADOOP_CONF_DIR=$HADOOP_HOME/etc/hadoop
     export PATH=$JAVA_HOME/bin:$HADOOP_HOME/bin:$HADOOP_HOME/sbin:$PATH
     hdfs --daemon start namenode
@@ -173,16 +192,22 @@ No hace falta hacerlo a mano: ol_asegurar_hdfs ya lo hace. Si aun asi quieres ar
 
 El orquestador lo deja listo: ol_detectar_pg busca un PGDATA existente en $HOME/pgdata, $HOME/Desktop/opt/pgdata, $HOME/Desktop/pgdata o $HOME/opt/pgdata; si no hay ninguno, ejecuta initdb en $HOME/pgdata. Despues ol_asegurar_roles_pg crea el rol PGUSER y la base PGDATABASE conectando como postgres cuando hace falta.
 
-Si prefieres hacerlo a mano:
+Si prefieres hacerlo a mano, usa siempre los valores detectados (no escribas rutas inventadas):
 
-    PGBIN=/ruta/al/postgresql/bin
-    PGDATA=/ruta/al/pgdata
-    $PGBIN/pg_ctl -D $PGDATA -l /tmp/opencode/postgres.log -o "-p 5432 -k /tmp" start
-    $PGBIN/pg_isready -h localhost -p 5432
+    source entorno.sh
+    ol_detectar_venv "psycopg"
+    ol_detectar_pg
+    ol_asegurar_postgres
+    ol_asegurar_roles_pg
+    "$PGBIN/pg_isready" -h localhost -p 5432
 
-Carga del esquema estrella:
+Si por alguna razon ol_asegurar_postgres no lo arranca, puedes lanzarlo con los valores ya detectados:
 
-    python3 postgres/cargar_gold.py --reiniciar
+    "$PGBIN/pg_ctl" -D "$PGDATA" -l /tmp/opencode/postgres.log -o "-p $PGPORT -k /tmp" start
+
+Carga del esquema estrella (usa el venv, no el python3 del sistema):
+
+    "$VENV/bin/python3" postgres/cargar_gold.py --reiniciar
 
 Este script:
 
@@ -195,7 +220,7 @@ Si las tablas ya existen y no usas --reiniciar, el script avisa para no borrar d
 
 Verifica la carga:
 
-    psql -v ON_ERROR_STOP=1 -f sql/verificar.sql
+    "$PGBIN/psql" -v ON_ERROR_STOP=1 -d "$PGDATABASE" -f sql/verificar.sql
 
 Salida esperada (ademas de cero filas huérfanas):
 
@@ -212,11 +237,11 @@ La suma de valoraciones del resumen debe ser 47443.
 
 Desde la raiz del repo:
 
-    psql -v ON_ERROR_STOP=1 -f sql/consultas.sql
+    "$PGBIN/psql" -v ON_ERROR_STOP=1 -d "$PGDATABASE" -f sql/consultas.sql
 
 Para guardar la salida:
 
-    psql -v ON_ERROR_STOP=1 -f sql/consultas.sql > /tmp/opencode/consultas.out 2>&1
+    "$PGBIN/psql" -v ON_ERROR_STOP=1 -d "$PGDATABASE" -f sql/consultas.sql > /tmp/opencode/consultas.out 2>&1
 
 Que hace cada consulta:
 
@@ -242,8 +267,8 @@ Hace exactamente esto, en orden:
 3. Preparar PGDATA, arrancar PostgreSQL y crear el rol y la base si faltan.
 4. bash ejecutar_todo.sh (bronze -> silver -> gold).
 5. bash hdfs/cargar_gold.sh FECHA.
-6. python3 postgres/cargar_gold.py --reiniciar.
-7. psql -f sql/verificar.sql y psql -f sql/consultas.sql.
+6. "$VENV/bin/python3" postgres/cargar_gold.py --reiniciar.
+7. "$PGBIN/psql" -f sql/verificar.sql y "$PGBIN/psql" -f sql/consultas.sql.
 
 La fecha se puede fijar con OL_FECHA:
 
@@ -283,14 +308,14 @@ Problema: hdfs dfs -ls / falla.
 solución: exportar JAVA_HOME, HADOOP_HOME y HADOOP_CONF_DIR; arrancar NameNode y DataNode; salir de safemode.
 
 Problema: psql dice que las tablas ya existen.
-solución: ejecutar python3 postgres/cargar_gold.py --reiniciar.
+solución: ejecutar "$VENV/bin/python3" postgres/cargar_gold.py --reiniciar.
 
 Problema: psycopg no puede conectar.
-solución: revisar PGHOST, PGPORT, PGUSER y PGDATABASE; comprobar con pg_isready.
+solución: revisar PGHOST, PGPORT, PGUSER y PGDATABASE; comprobar con "$PGBIN/pg_isready" -h "$PGHOST" -p "$PGPORT".
 
 Problema: HDFS dice que el storage directory no existe.
 Causa: hdfs-site.xml apunta a una ruta que aun no existe en esta maquina.
-solución: el orquestador la enlaza con ~/Desktop/hdfs o crea y formatea una vacia; tambien puedes exportar OL_HDFS_DATA_DIR=/ruta/al/hdfs.
+solución: el orquestador la enlaza con ~/Desktop/hdfs o crea y formatea una vacia; tambien puedes exportar OL_HDFS_DATA_DIR=/home/datalab/Desktop/hdfs.
 
 Problema: pg_ctl dice que no existe el directorio pgdata.
 solución: ol_detectar_pg busca un PGDATA existente o ejecuta initdb; exporta OL_PGDATA si quieres otra ruta.
@@ -329,20 +354,30 @@ solución: manual/generar_pdf.sh convierte con iconv a ISO-8859-1 y usa enscript
 
 ## Apendice: cheat sheet
 
-    # Todo desde cero
+    # Preparar la sesion (una vez por terminal)
+    source entorno.sh
+    ol_detectar_java
+    ol_detectar_hadoop
+    ol_detectar_venv "pyspark, psycopg"
+    ol_detectar_pg
+    ol_asegurar_hdfs
+    ol_asegurar_postgres
+    ol_asegurar_roles_pg
+
+    # Todo desde cero (si quieres el orquestador)
     bash ejecutar_todo_completo.sh
 
-    # Solo el nucleo
+    # Solo el nucleo (CSV)
     bash ejecutar_todo.sh
 
-    # Paso a paso
-    python3 etl/01_bronze.py
-    python3 etl/02_silver.py
-    python3 etl/03_gold.py
-    bash hdfs/cargar_gold.sh $(date +%F) --verificar-hash
-    python3 postgres/cargar_gold.py --reiniciar
-    psql -v ON_ERROR_STOP=1 -f sql/verificar.sql
-    psql -v ON_ERROR_STOP=1 -f sql/consultas.sql
+    # O paso a paso, ya con el bloque anterior cargado
+    "$VENV/bin/python3" etl/01_bronze.py
+    "$VENV/bin/python3" etl/02_silver.py
+    "$VENV/bin/python3" etl/03_gold.py
+    bash hdfs/cargar_gold.sh "$(date +%F)" --verificar-hash
+    "$VENV/bin/python3" postgres/cargar_gold.py --reiniciar
+    "$PGBIN/psql" -v ON_ERROR_STOP=1 -d "$PGDATABASE" -f sql/verificar.sql
+    "$PGBIN/psql" -v ON_ERROR_STOP=1 -d "$PGDATABASE" -f sql/consultas.sql
 
     # Regenerar este PDF
     bash manual/generar_pdf.sh

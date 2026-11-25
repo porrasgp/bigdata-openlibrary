@@ -1,5 +1,5 @@
 -- Consultas de ejemplo sobre el esquema estrella cargado desde data/gold.
--- Uso: psql -v ON_ERROR_STOP=1 -f sql/consultas.sql
+-- Uso: "$PGBIN/psql" -v ON_ERROR_STOP=1 -d "$PGDATABASE" -f sql/consultas.sql
 --
 -- Todas responden preguntas que se pueden responder con las dos dimensiones
 -- (obra y fecha) y las dos tablas de hechos (valoración y lectura).

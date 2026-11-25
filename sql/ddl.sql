@@ -3,7 +3,7 @@
 -- =====================================================================
 -- Se ejecuta desde postgres/cargar_gold.py, que después carga los CSV de
 -- data/gold con COPY. También puedes aplicarlo a mano:
---   psql -v ON_ERROR_STOP=1 -f sql/ddl.sql
+--   "$PGBIN/psql" -v ON_ERROR_STOP=1 -d "$PGDATABASE" -f sql/ddl.sql
 --
 -- Tablas de hechos: una fila por evento (valoración o cambio de lectura).
 -- Dimensiones: obra (con clave sustituta) y fecha (calendario continuo).
