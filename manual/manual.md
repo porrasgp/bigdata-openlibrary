@@ -56,9 +56,10 @@ Necesitas:
 - PostgreSQL 16 (o compatible) con un usuario y una base de datos.
 - iconv, enscript y ps2pdf solo si quieres regenerar este PDF.
 
-Instalación de dependencias Python:
+El orquestador crea el venv e instala las dependencias solas si no encuentra uno válido. Si prefieres hacerlo a mano:
 
-    pip install -r requirements.txt
+    python3 -m venv venv-bigdata
+    venv-bigdata/bin/pip install -r requirements.txt
 
 El archivo requirements.txt contiene:
 
@@ -67,13 +68,16 @@ El archivo requirements.txt contiene:
 
 ## 3. Preparación del entorno
 
-Los scripts detectan Java, Hadoop, el venv y los binarios de PostgreSQL de forma automática. Si tu instalacion esta en otras rutas, usa variables de override:
+Los scripts detectan Java, Hadoop, el venv y los binarios de PostgreSQL de forma automática, y preparan lo que falte: venv, PGDATA, rol/base y directorios HDFS. Si tu instalacion esta en otras rutas, usa variables de override:
 
     export OL_JAVA_HOME=/ruta/al/jdk-17
     export OL_HADOOP_HOME=/ruta/al/hadoop-3.5.0
     export OL_VENV=/ruta/al/venv
     export OL_PGBIN=/ruta/al/postgresql/bin
     export OL_PGDATA=/ruta/al/pgdata
+    export OL_PGADMIN=postgres
+    export OL_PGSOCKET=/tmp
+    export OL_HDFS_DATA_DIR=/ruta/al/hdfs
     export PGHOST=localhost
     export PGPORT=5432
     export PGUSER=tu_usuario
@@ -88,7 +92,7 @@ No hace falta exportarlas si todo esta en las rutas habituales. Para ver que se 
     ol_detectar_pg
     ol_resumen_entorno
 
-entorno.sh solo define funciones: no modifica nada por si solo.
+entorno.sh solo define funciones: no modifica nada al hacer source. Las funciones ol_detectar_* y ol_asegurar_* si crean lo que falta cuando se invocan.
 
 ## 4. Paso 1: ejecutar el nucleo medallion (solo CSV)
 
@@ -149,13 +153,13 @@ El destino es:
 
 Dentro estan los cinco CSV del gold. El script:
 
-1. Comprueba que HDFS responda; si no, arranca NameNode y DataNode.
+1. Comprueba que HDFS responda. Si las rutas de hdfs-site.xml no existen, las enlaza con un HDFS ya formateado en ~/Desktop/hdfs o ~/hdfs; si no hay ninguno, crea y formatea uno vacio. Despues arranca NameNode y DataNode.
 2. Crea la carpeta de destino.
 3. Sube cada CSV con hdfs dfs -put -f.
 4. Compara el tamano local con hdfs dfs -du.
 5. Opcionalmente compara hashes con hdfs dfs -cat.
 
-Si HDFS no responde, también puedes arrancarlo a mano:
+No hace falta hacerlo a mano: ol_asegurar_hdfs ya lo hace. Si aun asi quieres arrancarlo manualmente:
 
     export JAVA_HOME=/ruta/al/jdk-17
     export HADOOP_HOME=/ruta/al/hadoop-3.5.0
@@ -167,7 +171,9 @@ Si HDFS no responde, también puedes arrancarlo a mano:
 
 ## 6. Paso 3: cargar el gold en PostgreSQL
 
-Si el servidor no esta arrancado, el orquestador lo inicia. también puedes hacerlo a mano:
+El orquestador lo deja listo: ol_detectar_pg busca un PGDATA existente en $HOME/pgdata, $HOME/Desktop/opt/pgdata, $HOME/Desktop/pgdata o $HOME/opt/pgdata; si no hay ninguno, ejecuta initdb en $HOME/pgdata. Despues ol_asegurar_roles_pg crea el rol PGUSER y la base PGDATABASE conectando como postgres cuando hace falta.
+
+Si prefieres hacerlo a mano:
 
     PGBIN=/ruta/al/postgresql/bin
     PGDATA=/ruta/al/pgdata
@@ -231,9 +237,9 @@ Cuando ya quieras ejecutar todo seguido:
 
 Hace exactamente esto, en orden:
 
-1. Detectar Java, Hadoop, venv con pyspark y psycopg, y binarios de PostgreSQL.
-2. Asegurar HDFS (arranca demonios si hace falta).
-3. Asegurar PostgreSQL, rol y base de datos.
+1. Detectar Java, Hadoop y binarios de PostgreSQL; crear el venv con pyspark y psycopg si falta.
+2. Preparar las rutas de HDFS, formatear si no hay metadata y arrancar NameNode y DataNode.
+3. Preparar PGDATA, arrancar PostgreSQL y crear el rol y la base si faltan.
 4. bash ejecutar_todo.sh (bronze -> silver -> gold).
 5. bash hdfs/cargar_gold.sh FECHA.
 6. python3 postgres/cargar_gold.py --reiniciar.
@@ -282,6 +288,16 @@ solución: ejecutar python3 postgres/cargar_gold.py --reiniciar.
 Problema: psycopg no puede conectar.
 solución: revisar PGHOST, PGPORT, PGUSER y PGDATABASE; comprobar con pg_isready.
 
+Problema: HDFS dice que el storage directory no existe.
+Causa: hdfs-site.xml apunta a una ruta que aun no existe en esta maquina.
+solución: el orquestador la enlaza con ~/Desktop/hdfs o crea y formatea una vacia; tambien puedes exportar OL_HDFS_DATA_DIR=/ruta/al/hdfs.
+
+Problema: pg_ctl dice que no existe el directorio pgdata.
+solución: ol_detectar_pg busca un PGDATA existente o ejecuta initdb; exporta OL_PGDATA si quieres otra ruta.
+
+Problema: psql dice que el rol no existe.
+solución: ol_asegurar_roles_pg conecta como postgres para crearlo; exporta OL_PGADMIN si tu superusuario tiene otro nombre.
+
 Problema: al regenerar el PDF salen caracteres raros.
 Causa: enscript no acepta UTF-8.
 solución: manual/generar_pdf.sh convierte con iconv a ISO-8859-1 y usa enscript -X latin1.
@@ -290,7 +306,7 @@ solución: manual/generar_pdf.sh convierte con iconv a ISO-8859-1 y usa enscript
 
     ejecutar_todo.sh             nucleo medallion (CSV)
     ejecutar_todo_completo.sh    flujo completo
-    entorno.sh                   deteccion de Java, Hadoop, venv y PostgreSQL
+    entorno.sh                   deteccion y preparacion automatica de Java, Hadoop, venv, HDFS y PostgreSQL
     requirements.txt             pyspark + psycopg
     muestra/csv/                 CSV de entrada (versionados)
     etl/common.py                rutas, SparkSession, lectura/escritura CSV
