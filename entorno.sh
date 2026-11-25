@@ -18,11 +18,12 @@ ol_detectar_java() {
     if command -v java >/dev/null 2>&1; then
       JAVA_HOME="$(dirname "$(dirname "$(readlink -f "$(command -v java)")")")"
     else
-      for cand in \
-        "${OL_JAVA_HOME:-}" \
-        "$HOME/Desktop"/opt/jdk-* \
-        "$HOME"/opt/jdk-* \
-        "$HOME"/jdk-*; do
+        for cand in \
+          "${OL_JAVA_HOME:-}" \
+          "$HOME/Desktop"/opt/jdk-* \
+          "$HOME"/opt/jdk-* \
+          "$HOME/.jdk"/jdk-* \
+          "$HOME"/jdk-*; do
         [[ -n "$cand" && -x "$cand/bin/java" ]] && { JAVA_HOME="$cand"; break; }
       done
     fi
@@ -81,6 +82,10 @@ ol_instalar_venv() {
 ol_detectar_venv() {
   local modulos="${1:-pyspark}"
   local venv="${OL_VENV:-${VIRTUAL_ENV:-}}"
+
+  if [[ "$modulos" == *pyspark* ]]; then
+    ol_detectar_java || return 1
+  fi
 
   if ! ol_venv_valido "$venv" "$modulos"; then
     venv=""

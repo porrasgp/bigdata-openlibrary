@@ -6,6 +6,8 @@ data/*
 __pycache__/
 *.pyc
 .venv/
+venv-bigdata/
+venv-pgtest/
 .ipynb_checkpoints/
 
 # Spark / Java / Hadoop

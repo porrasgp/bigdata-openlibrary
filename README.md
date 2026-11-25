@@ -80,8 +80,9 @@ Diagramas detallados en [`docs/flujo.md`](docs/flujo.md); explicación didáctic
 │   └── plantilla_informe.md     # informe máximo 6 páginas
 ├── manual/
 │   ├── manual.md                # fuente del manual
-│   ├── generar_pdf.sh           # regenera el PDF con iconv + enscript
-│   └── manual.pdf               # manual para ejecutar todo a mano
+│   ├── generar_pdf.sh           # envoltorio para regenerar el PDF
+│   ├── generar_pdf.py           # maquetación del PDF con ReportLab
+│   └── manual.pdf               # manual maquetado para ejecutar todo a mano
 ├── docs/
 │   ├── flujo.md
 │   └── medallion.md
@@ -125,7 +126,7 @@ Después, HDFS guarda el gold particionado por fecha y PostgreSQL lo carga con P
 - Hadoop 3.5 (para el cliente HDFS; las rutas del ETL son `file://`).
 - Python 3.11+; el orquestador crea el venv e instala `requirements.txt` si hace falta.
 - PostgreSQL accesible por `PGHOST`/`PGPORT`/`PGUSER`/`PGDATABASE`; si no hay `PGDATA`, se inicializa solo.
-- `iconv`, `enscript` y `ps2pdf` solo para regenerar el PDF.
+- `reportlab` (incluido en `requirements.txt`) solo para regenerar el PDF con `bash manual/generar_pdf.sh`.
 
 Rutas personalizadas:
 
