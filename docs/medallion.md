@@ -75,3 +75,15 @@ python3 etl/03_gold.py
 2. Cambia el orden de deduplicación por `ultima_modificacion` en lugar de `revision`.
 3. Crea una nueva tabla en gold: valoraciones por década.
 4. Compara el tamaño de `data/bronze` y `data/gold`: explica por qué el gold es más pequeño.
+
+## Extensión del proyecto
+
+El núcleo termina en `data/gold/`. A partir de ahí, el flujo completo añade dos destinos y una capa de análisis:
+
+- [`hdfs/cargar_gold.sh`](../hdfs/cargar_gold.sh) publica los CSV en `/medallion/gold/fecha=FECHA/`.
+- [`postgres/cargar_gold.py`](../postgres/cargar_gold.py) crea el esquema `estrella` con `sql/ddl.sql` y carga los CSV con `COPY`.
+- [`sql/consultas.sql`](../sql/consultas.sql) contiene seis consultas sobre las dos dimensiones y las dos tablas de hechos.
+- [`proyecto_final/`](../proyecto_final/) propone casos, rúbrica e informe.
+- [`manual/manual.pdf`](../manual/manual.pdf) explica cómo ejecutar todo a mano.
+
+Puedes lanzar todas las fases con `bash ejecutar_todo_completo.sh` o hacerlas una por una. En los dos casos se respeta el orden de capas descrito arriba.

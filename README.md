@@ -1,63 +1,95 @@
-# Big Data con Open Library — versión simplificada
+# Big Data con Open Library — medallion + HDFS + PostgreSQL
 
-Proyecto reducido para enseñar **arquitectura Medallion** con un ETL en PySpark local.
+Proyecto para enseñar **arquitectura Medallion** con un ETL en PySpark local sobre CSV, y después publicar el resultado en HDFS, cargarlo en PostgreSQL y analizarlo con SQL.
 
-**Solo CSV.** No hay HDFS, PostgreSQL, Parquet ni dumps comprimidos. Los datos de ejemplo ya están en `muestra/csv/`.
+- **Núcleo:** `muestra/csv/` → bronze → silver → gold, todo en CSV local.
+- **Extensión:** gold → HDFS → PostgreSQL → consultas SQL → proyecto final.
+- **Guía impresa:** [`manual/manual.pdf`](manual/manual.pdf) con el procedimiento manual completo.
 
-## ▶️ Ejecutar todo de forma manual
+## Ejecutar todo de forma manual
 
-El archivo que necesitas está en la raíz del repo:
+Hay dos archivos en la raíz:
 
 ```bash
+# Solo el núcleo medallion (CSV local; no necesita HDFS ni PostgreSQL)
 bash ejecutar_todo.sh
+
+# Flujo completo: medallion + HDFS + PostgreSQL + SQL
+bash ejecutar_todo_completo.sh
 ```
 
-Ese script detecta Java, Hadoop y el venv con PySpark, y ejecuta en orden:
+`ejecutar_todo_completo.sh` hace, en orden:
 
-1. `etl/01_bronze.py`
-2. `etl/02_silver.py`
-3. `etl/03_gold.py`
+1. Detectar Java, Hadoop, venv con `pyspark` + `psycopg` y binarios de PostgreSQL.
+2. Asegurar que HDFS y PostgreSQL estén disponibles.
+3. `etl/01_bronze.py`, `etl/02_silver.py`, `etl/03_gold.py`.
+4. `hdfs/cargar_gold.sh` → `/medallion/gold/fecha=FECHA/`.
+5. `postgres/cargar_gold.py --reiniciar` → esquema `estrella`.
+6. `psql -f sql/verificar.sql` y `psql -f sql/consultas.sql`.
 
-Al terminar imprime todos los CSV generados en `data/`.
+La fecha del snapshot se puede fijar:
 
-## 🧠 Flujo visual
+```bash
+OL_FECHA=2026-11-25 bash ejecutar_todo_completo.sh
+```
+
+## Flujo visual
 
 ```mermaid
 flowchart LR
-    A["muestra/csv/<br/>5 CSV de ejemplo"] -->|01_bronze.py<br/>copia + SHA-256| B["data/bronze/<br/>CSV intactos + _MANIFEST.csv"]
-    B -->|02_silver.py<br/>validar · dedupe · tipar| C["data/silver/<br/>CSV limpios"]
-    C -->|filas que fallan| D["data/silver/_rechazados/<br/>CSV con motivo"]
-    C -->|03_gold.py<br/>modelo estrella| E["data/gold/<br/>dim_*.csv · fact_*.csv"]
-    E --> F["resumen_valoraciones_anio.csv<br/>listo para graficar"]
+    A["muestra/csv/<br/>5 CSV de ejemplo"] -->|01_bronze.py| B["data/bronze/<br/>CSV + _MANIFEST.csv"]
+    B -->|02_silver.py| C["data/silver/<br/>CSV limpios"]
+    C -->|filas inválidas| D["_rechazados/<br/>CSV con motivo"]
+    C -->|03_gold.py| E["data/gold/<br/>dim_* · fact_* · resumen_*"]
+    E -->|cargar_gold.sh| H["HDFS<br/>/medallion/gold/fecha=FECHA/"]
+    E -->|COPY| P["PostgreSQL<br/>esquema estrella"]
+    P -->|consultas.sql| Q["Análisis + EXPLAIN"]
+    Q --> F["proyecto_final/"]
 ```
 
-Si quieres el diagrama de ejecución de scripts y la explicación para alumnos:
+Diagramas detallados en [`docs/flujo.md`](docs/flujo.md); explicación didáctica en [`docs/medallion.md`](docs/medallion.md).
 
-- [`docs/flujo.md`](docs/flujo.md) — flujo de archivos y de scripts.
-- [`docs/medallion.md`](docs/medallion.md) — qué se hace en cada capa y por qué.
-
-## 📁 Estructura
+## Estructura
 
 ```text
 .
-├── ejecutar_todo.sh          # ← ejecuta TODO (archivo manual)
-├── requirements.txt
-├── muestra/csv/              # CSV de ejemplo (entrada, versionados)
+├── ejecutar_todo.sh             # núcleo medallion en CSV
+├── ejecutar_todo_completo.sh    # flujo completo
+├── entorno.sh                   # detección de Java, Hadoop, venv y PostgreSQL
+├── requirements.txt             # pyspark + psycopg
+├── muestra/csv/                 # CSV de ejemplo (entrada, versionados)
 ├── etl/
-│   ├── common.py             # rutas, SparkSession, lectura/escritura CSV
-│   ├── 01_bronze.py          # copia íntegra + manifiesto con hash
-│   ├── 02_silver.py          # limpieza, validación, dedupe y rechazos
-│   └── 03_gold.py            # modelo estrella + agregación
+│   ├── common.py                # rutas, SparkSession, E/S de CSV
+│   ├── 01_bronze.py             # copia íntegra + manifiesto SHA-256
+│   ├── 02_silver.py             # validación, dedupe, rechazos
+│   └── 03_gold.py               # modelo estrella + agregación
+├── hdfs/
+│   ├── cargar_gold.sh           # sube gold a /medallion/gold/fecha=FECHA/
+│   └── reportar_hdfs.sh         # tamaño, bloques y replicación
+├── postgres/
+│   └── cargar_gold.py           # DDL + COPY desde data/gold
+├── sql/
+│   ├── ddl.sql                  # esquema estrella
+│   ├── verificar.sql            # conteos e integridad
+│   └── consultas.sql            # 6 consultas de ejemplo
+├── proyecto_final/
+│   ├── README.md                # casos y entregables
+│   ├── rubrica.md               # 100 puntos
+│   └── plantilla_informe.md     # informe máximo 6 páginas
+├── manual/
+│   ├── manual.md                # fuente del manual
+│   ├── generar_pdf.sh           # regenera el PDF con iconv + enscript
+│   └── manual.pdf               # manual para ejecutar todo a mano
 ├── docs/
 │   ├── flujo.md
 │   └── medallion.md
-└── data/                     # generado por el ETL (no versionado)
+└── data/                        # generado (no versionado)
     ├── bronze/
     ├── silver/
     └── gold/
 ```
 
-## 🥉🥈🥇 Las tres capas
+## Las tres capas
 
 | Capa | Regla | Resultado |
 |---|---|---|
@@ -65,13 +97,11 @@ Si quieres el diagrama de ejecución de scripts y la explicación para alumnos:
 | **Silver** | Se valida, se deduplica y se guardan los rechazos | `data/silver/*.csv` y `_rechazados/` |
 | **Gold** | Se organiza para responder preguntas | `data/gold/dim_*`, `fact_*`, `resumen_*` |
 
-La explicación detallada está en [`docs/medallion.md`](docs/medallion.md).
+Después, HDFS guarda el gold particionado por fecha y PostgreSQL lo carga con PK, FK y CHECK.
 
-## 📊 Datos y conteos esperados
+## Conteos esperados con la muestra
 
-Entrada (`muestra/csv/`):
-
-| CSV | Filas |
+| CSV de entrada | Filas |
 |---|---:|
 | `authors.csv` | 381 |
 | `works.csv` | 200 |
@@ -79,40 +109,34 @@ Entrada (`muestra/csv/`):
 | `ratings.csv` | 47.443 |
 | `reading-log.csv` | 1.160.547 |
 
-Salida del gold (`data/gold/`):
-
-| CSV | Filas |
+| Tabla del gold / PostgreSQL | Filas |
 |---|---:|
-| `dim_obra.csv` | 200 |
-| `dim_fecha.csv` | 3.287 |
-| `fact_valoracion.csv` | 47.443 |
-| `fact_lectura.csv` | 1.160.547 |
-| `resumen_valoraciones_anio.csv` | 9 |
+| `dim_obra` | 200 |
+| `dim_fecha` | 3.287 |
+| `fact_valoracion` | 47.443 |
+| `fact_lectura` | 1.160.547 |
+| `resumen_valoraciones_anio` | 9 |
 
-## 🔧 Requisitos
+## Requisitos
 
-- Java 17
-- Python 3.11 o superior
-- PySpark 4.3.0 (`pip install -r requirements.txt`)
+- Java 17.
+- Hadoop 3.5 (para el cliente HDFS; las rutas del ETL son `file://`).
+- Python 3.11+ con `pip install -r requirements.txt`.
+- PostgreSQL accesible por `PGHOST`/`PGPORT`/`PGUSER`/`PGDATABASE`.
+- `iconv`, `enscript` y `ps2pdf` solo para regenerar el PDF.
 
-`ejecutar_todo.sh` busca Java y Hadoop en las rutas habituales y usa cualquier venv que tenga PySpark. Si el tuyo está en otra ruta:
-
-```bash
-OL_JAVA_HOME=/ruta/jdk OL_HADOOP_HOME=/ruta/hadoop OL_VENV=/ruta/venv bash ejecutar_todo.sh
-```
-
-También puedes ejecutar los pasos por separado, siempre en este orden:
+Rutas personalizadas:
 
 ```bash
-python3 etl/01_bronze.py
-python3 etl/02_silver.py
-python3 etl/03_gold.py
+OL_JAVA_HOME=/ruta/jdk OL_HADOOP_HOME=/ruta/hadoop \
+OL_VENV=/ruta/venv OL_PGBIN=/ruta/pg/bin OL_PGDATA=/ruta/pgdata \
+bash ejecutar_todo_completo.sh
 ```
+
+También puedes ejecutar cada fase por separado; el orden está en el [manual PDF](manual/manual.pdf).
+
+## Proyecto final
+
+En [`proyecto_final/`](proyecto_final/) están los tres casos de estudio, la rúbrica de 100 puntos y la plantilla de informe. La entrega mínima incluye una validación propia en el ETL, el gold publicado en HDFS, la carga verificada en PostgreSQL, cinco consultas y `EXPLAIN ANALYZE` antes y después de índices.
 
 > Los avisos de PySpark sobre pandas, librerías nativas de Hadoop y ventanas sin partición son informativos; el pipeline termina correctamente.
-
-## 🧹 Qué cambió respecto al curso original
-
-Se eliminaron las partes que no eran necesarias para este objetivo: HDFS, PostgreSQL, DDL/SQL, consultas, ejercicios, proyecto final, dumps comprimidos y caché de API. El historial de Git conserva todo eso si se necesita recuperarlo.
-
-Lo que queda es un pipeline corto, reproducible y explicado: **CSV → bronze → silver → gold**.

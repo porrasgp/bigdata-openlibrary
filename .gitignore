@@ -8,9 +8,14 @@ __pycache__/
 .venv/
 .ipynb_checkpoints/
 
-# Spark / Java
+# Spark / Java / Hadoop
 spark-warehouse/
 metastore_db/
 derby.log
 *.log
 hadoop-*/
+*.crc
+_SUCCESS
+
+# Intermedios del PDF del manual (el PDF sí se versiona)
+manual/*.ps
