@@ -81,6 +81,7 @@ Necesitas:
 - Python 3.11 o superior.
 - PySpark 4.3.0 y psycopg 3.3.8.
 - PostgreSQL 16 (o compatible) con un usuario y una base de datos.
+- pgAdmin 4 (opcional) si quieres explorar PostgreSQL desde el navegador; se instala aparte en su propio venv (sección 3.1).
 - Python con `reportlab` solo si quieres regenerar este PDF.
 
 El orquestador crea el venv e instala las dependencias solas si no encuentra uno válido. Si prefieres hacerlo a mano:
@@ -150,6 +151,67 @@ ol_resumen_entorno
 > **Comprueba:** `ol_resumen_entorno` debe mostrar Java, Hadoop, Python, Postgres y PGDATA sin mensajes de error.
 
 `entorno.sh` solo define funciones: no modifica nada al hacer `source`. Las funciones `ol_detectar_*` y `ol_asegurar_*` sí crean lo que falta cuando se invocan.
+
+### 3.1. Ver PostgreSQL en el navegador con pgAdmin (opcional)
+
+PostgreSQL escucha en `5432` con su propio protocolo: si abres `http://localhost:5432/` verás una página vacía o un error. Eso es normal. pgAdmin es otra aplicación web y se publica en `http://127.0.0.1:5050/`.
+
+Instalación inicial (una sola vez):
+
+```bash
+PGADMIN_DIR="$HOME/Desktop/venv-pgadmin"
+python3 -m venv "$PGADMIN_DIR"
+"$PGADMIN_DIR/bin/python3" -m pip install -U pip
+"$PGADMIN_DIR/bin/python3" -m pip install "pgadmin4==9.18"
+mkdir -p "$HOME/.pgadmin" && chmod 700 "$HOME/.pgadmin"
+
+"$PGADMIN_DIR/bin/python3" - <<'PY'
+from pathlib import Path
+import sys
+
+base = next(Path(sys.prefix).glob("lib/python*/site-packages/pgadmin4"))
+(base / "config_local.py").write_text(
+    "SERVER_MODE = True\n"
+    f'DATA_DIR = "{Path.home() / ".pgadmin"}"\n'
+    'DEFAULT_SERVER = "127.0.0.1"\n'
+    'DEFAULT_SERVER_PORT = 5050\n'
+    'MASTER_PASSWORD_REQUIRED = False\n'
+)
+print("config_local.py listo")
+PY
+
+SETUP=( "$PGADMIN_DIR"/lib/python*/site-packages/pgadmin4/setup.py )
+PGADMIN_SETUP_EMAIL='admin@example.com' \
+PGADMIN_SETUP_PASSWORD='admin123' \
+  "$PGADMIN_DIR/bin/python3" "${SETUP[0]}" setup-db
+```
+
+> **Importante:** usa `pgadmin4==9.18`. El wheel `9.19` de PyPI no incluye `static/js/generated` y la página se queda cargando con errores 404 de CSS/JS. Si ya instalaste `9.19`, ejecuta `"$PGADMIN_DIR/bin/python3" -m pip install --force-reinstall "pgadmin4==9.18"`, borra `$HOME/.pgadmin/pgadmin4.db*` y repite el `setup-db` de arriba. El correo debe ser válido (con dominio y punto), por eso se usa `admin@example.com`.
+
+Arranque (cada vez que quieras usarlo):
+
+```bash
+PGADMIN_DIR="$HOME/Desktop/venv-pgadmin"
+nohup "$PGADMIN_DIR/bin/pgadmin4" > /tmp/pgadmin.log 2>&1 &
+echo $! > /tmp/pgadmin.pid
+curl -fsSL http://127.0.0.1:5050/ >/dev/null && echo "pgAdmin listo"
+```
+
+Abre Firefox en `http://127.0.0.1:5050/` y entra con:
+
+| Campo | Valor |
+|---|---|
+| Email / usuario de pgAdmin | `admin@example.com` |
+| Contraseña de pgAdmin | `admin123` |
+
+Dentro de pgAdmin:
+
+1. Clic derecho en **Servers** → **Create** → **Server**.
+2. En **General**, Name: `Open Library local`.
+3. En **Connection**: Host `127.0.0.1`, Port `5432`, Maintenance database `datalab`, Username `datalab` y la contraseña definida en `entorno.sh`.
+4. **Save** y abre **Tools → Query Tool** para pegar las consultas de `sql/consultas.sql`.
+
+> **Importante:** pgAdmin es solo una interfaz; no reemplaza a `psql` ni al loader. Para detenerlo: `kill "$(cat /tmp/pgadmin.pid)"`. Escucha solo en `127.0.0.1`; no lo expongas a la red.
 
 ## 4. Paso 1: ejecutar el núcleo Medallion (solo CSV)
 
@@ -470,6 +532,12 @@ bash hdfs/cargar_gold.sh "$(date +%F)" --verificar-hash
 "$VENV/bin/python3" postgres/cargar_gold.py --reiniciar
 "$PGBIN/psql" -v ON_ERROR_STOP=1 -d "$PGDATABASE" -f sql/verificar.sql
 "$PGBIN/psql" -v ON_ERROR_STOP=1 -d "$PGDATABASE" -f sql/consultas.sql
+
+# Ver PostgreSQL en el navegador (opcional)
+PGADMIN_DIR="$HOME/Desktop/venv-pgadmin"
+nohup "$PGADMIN_DIR/bin/pgadmin4" > /tmp/pgadmin.log 2>&1 &
+echo $! > /tmp/pgadmin.pid
+# Firefox: http://127.0.0.1:5050/  (admin@example.com / admin123)
 
 # Regenerar este PDF
 bash manual/generar_pdf.sh

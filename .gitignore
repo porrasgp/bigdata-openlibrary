@@ -8,6 +8,7 @@ __pycache__/
 .venv/
 venv-bigdata/
 venv-pgtest/
+venv-pgadmin/
 .ipynb_checkpoints/
 
 # Spark / Java / Hadoop

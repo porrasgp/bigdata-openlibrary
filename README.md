@@ -127,6 +127,7 @@ Después, HDFS guarda el gold particionado por fecha y PostgreSQL lo carga con P
 - Python 3.11+; el orquestador crea el venv e instala `requirements.txt` si hace falta.
 - PostgreSQL accesible por `PGHOST`/`PGPORT`/`PGUSER`/`PGDATABASE`; si no hay `PGDATA`, se inicializa solo.
 - `reportlab` (incluido en `requirements.txt`) solo para regenerar el PDF con `bash manual/generar_pdf.sh`.
+- pgAdmin 4 `9.18` opcional para explorar PostgreSQL en `http://127.0.0.1:5050/`; instalación paso a paso en el manual, sección 3.1.
 
 Rutas personalizadas:
 
