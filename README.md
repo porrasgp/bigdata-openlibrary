@@ -1,102 +1,118 @@
-# Big Data con Open Library
+# Big Data con Open Library — versión simplificada
 
-Curso práctico de big data con datos públicos: desde la descarga de un dataset real hasta un proyecto final analítico. Todo el pipeline se ejecuta en una VM de Ubuntu en VirtualBox.
+Proyecto reducido para enseñar **arquitectura Medallion** con un ETL en PySpark local.
 
-Stack: Ubuntu 26.04 LTS · Java 17 · Hadoop 3.5.0 (HDFS) · PySpark 4.3.0 · PostgreSQL 18 · Python 3.11+
+**Solo CSV.** No hay HDFS, PostgreSQL, Parquet ni dumps comprimidos. Los datos de ejemplo ya están en `muestra/csv/`.
 
-## Datos
+## ▶️ Ejecutar todo de forma manual
 
-Fuente: [Open Library Data Dumps](https://openlibrary.org/developers/dumps), licencia **CC0 1.0** (dominio público).
-Snapshot fijo: **2026-10-31**. Todos los alumnos usan la misma fecha.
-
-| Dump | Comprimido | Uso |
-|---|---:|---|
-| editions | 12.6 GB | Ediciones (tabla grande) |
-| works | 4.1 GB | Obras |
-| authors | 0.8 GB | Autores |
-| ratings | 9 MB | Valoraciones |
-| reading-log | 125 MB | Estado de lectura |
-| **Total** | **~17.6 GB** | |
-
-Los datos completos **no se suben** al repositorio (ver `.gitignore`). Se descargan con `01_extraccion/descargar_dumps.sh`. La carpeta `muestra/` tiene un subconjunto coherente de 60 MB para probar el pipeline sin descargar todo.
-
-## Requisitos de la VM
-
-| Recurso | Mínimo |
-|---|---|
-| Hipervisor | VirtualBox 7.x |
-| SO invitado | Ubuntu 26.04.1 LTS (escritorio) |
-| RAM | 8 GB |
-| CPU | 4 vCPU |
-| Disco | 120 GB |
-
-## Mapa del curso
-
-Cada carpeta tiene su propio README con qué contiene, qué se hizo, qué necesitas y qué debes entender.
-
-| Semana | Carpeta | Contenido |
-|---|---|---|
-| 1 | [`00_setup/`](00_setup/README.md) | Entorno: Java, Hadoop, PostgreSQL, PySpark y verificación |
-| 1 | [`01_extraccion/`](01_extraccion/README.md) | Descarga verificada de dumps, muestra coherente y conversión a CSV |
-| 1 | [`02_hdfs/`](02_hdfs/README.md) | Carga de la zona raw en HDFS |
-| 2 | [`03_limpieza_spark/`](03_limpieza_spark/README.md) | PySpark: raw → clean → curated, validación y modelo normalizado |
-| 3 | [`04_modelado/`](04_modelado/README.md) | DDL del modelo normalizado y del esquema estrella, diagrama ER |
-| 3 | [`05_carga_postgres/`](05_carga_postgres/README.md) | Exportación a CSV y carga con `COPY` |
-| 4 | [`06_consultas/`](06_consultas/README.md) | Consultas, ventanas, índices y `EXPLAIN ANALYZE` |
-| 4 | [`07_ejercicios/`](07_ejercicios/README.md) | 12 ejercicios con soluciones |
-| 4 | [`08_proyecto_final/`](08_proyecto_final/README.md) | Proyecto individual: casos de estudio, rúbrica e informe |
-
-Carpetas de datos: [`muestra/`](muestra/README.md) y [`data/`](data/README.md).
-
-## Orden de ejecución
+El archivo que necesitas está en la raíz del repo:
 
 ```bash
-# Semana 1: entorno y datos
-source 00_setup/env.sh
-bash 00_setup/verificar.sh
-./01_extraccion/descargar_dumps.sh                 # o solo: ratings reading-log
-./02_hdfs/cargar_raw.sh data/raw 2026-10-31
-
-# Semana 2: limpieza en Spark
-cd 03_limpieza_spark
-python3 01_raw_a_clean.py
-python3 02_clean_a_curated.py
-
-# Semana 3: carga en PostgreSQL
-cd ../05_carga_postgres
-python3 exportar_csv.py
-python3 cargar_postgres.py --reiniciar
-psql -f verificar_carga.sql
-
-# Semana 4: consultas
-cd ../06_consultas
-psql -f 01_basicas.sql
+bash ejecutar_todo.sh
 ```
 
-Para probar todo primero con la muestra, carga `muestra/` en HDFS con `./02_hdfs/cargar_raw.sh muestra muestra` y exporta `OL_RAW=hdfs://localhost:8020/raw/openlibrary/fecha=muestra` antes del paso 2 de la semana 2.
+Ese script detecta Java, Hadoop y el venv con PySpark, y ejecuta en orden:
 
-## Estado de las pruebas
+1. `etl/01_bronze.py`
+2. `etl/02_silver.py`
+3. `etl/03_gold.py`
 
-Probamos el pipeline completo con la muestra, en un equipo de desarrollo con las mismas versiones (JDK 17, Hadoop 3.5.0, PySpark 4.3.0). La base de datos se probó con PostgreSQL 16, porque es la versión disponible en ese equipo; el SQL es compatible con PostgreSQL 18.
+Al terminar imprime todos los CSV generados en `data/`.
 
-| Paso | Probado con la muestra |
-|---|---|
-| Descarga de dumps y verificación SHA-256 | Sí (`ratings`, `reading-log`) |
-| Construcción de la muestra desde la API | Sí (200 obras, sin claves rotas) |
-| Carga en HDFS con verificación de tamaño y hash | Sí |
-| Limpieza y curado en PySpark | Sí, sin rechazos por clave foránea |
-| Exportación a CSV y carga con `COPY` | Sí, con restricciones activas |
-| Consultas de las semanas 3 y 4 | Sí, sin errores |
-| Pipeline con los **dumps completos** | **No**: requiere la VM del alumno, 17.6 GB y varias horas |
+## 🧠 Flujo visual
 
-Con los dumps completos, algunas etapas pueden tardar bastante más que con la muestra, sobre todo la lectura del `editions` comprimido (un solo archivo `.gz` no se puede dividir). Los tiempos reales dependen de la VM.
+```mermaid
+flowchart LR
+    A["muestra/csv/<br/>5 CSV de ejemplo"] -->|01_bronze.py<br/>copia + SHA-256| B["data/bronze/<br/>CSV intactos + _MANIFEST.csv"]
+    B -->|02_silver.py<br/>validar · dedupe · tipar| C["data/silver/<br/>CSV limpios"]
+    C -->|filas que fallan| D["data/silver/_rechazados/<br/>CSV con motivo"]
+    C -->|03_gold.py<br/>modelo estrella| E["data/gold/<br/>dim_*.csv · fact_*.csv"]
+    E --> F["resumen_valoraciones_anio.csv<br/>listo para graficar"]
+```
 
-## Proyecto final
+Si quieres el diagrama de ejecución de scripts y la explicación para alumnos:
 
-Trabajo individual. Eliges uno de estos casos de estudio:
+- [`docs/flujo.md`](docs/flujo.md) — flujo de archivos y de scripts.
+- [`docs/medallion.md`](docs/medallion.md) — qué se hace en cada capa y por qué.
 
-- **A. Editorial:** tendencias de publicación por década, idioma y tema.
-- **B. Biblioteca:** autores y temas con más ediciones y temas desatendidos.
-- **C. Comportamiento lector:** obras más leídas, valoraciones y lectura por año.
+## 📁 Estructura
 
-Detalles, entregables y rúbrica en [`08_proyecto_final/`](08_proyecto_final/README.md).
+```text
+.
+├── ejecutar_todo.sh          # ← ejecuta TODO (archivo manual)
+├── requirements.txt
+├── muestra/csv/              # CSV de ejemplo (entrada, versionados)
+├── etl/
+│   ├── common.py             # rutas, SparkSession, lectura/escritura CSV
+│   ├── 01_bronze.py          # copia íntegra + manifiesto con hash
+│   ├── 02_silver.py          # limpieza, validación, dedupe y rechazos
+│   └── 03_gold.py            # modelo estrella + agregación
+├── docs/
+│   ├── flujo.md
+│   └── medallion.md
+└── data/                     # generado por el ETL (no versionado)
+    ├── bronze/
+    ├── silver/
+    └── gold/
+```
+
+## 🥉🥈🥇 Las tres capas
+
+| Capa | Regla | Resultado |
+|---|---|---|
+| **Bronze** | No se limpia nada; se conserva el origen y su hash | `data/bronze/*.csv` + `_MANIFEST.csv` |
+| **Silver** | Se valida, se deduplica y se guardan los rechazos | `data/silver/*.csv` y `_rechazados/` |
+| **Gold** | Se organiza para responder preguntas | `data/gold/dim_*`, `fact_*`, `resumen_*` |
+
+La explicación detallada está en [`docs/medallion.md`](docs/medallion.md).
+
+## 📊 Datos y conteos esperados
+
+Entrada (`muestra/csv/`):
+
+| CSV | Filas |
+|---|---:|
+| `authors.csv` | 381 |
+| `works.csv` | 200 |
+| `editions.csv` | 1.507 (3 se rechazan por título vacío) |
+| `ratings.csv` | 47.443 |
+| `reading-log.csv` | 1.160.547 |
+
+Salida del gold (`data/gold/`):
+
+| CSV | Filas |
+|---|---:|
+| `dim_obra.csv` | 200 |
+| `dim_fecha.csv` | 3.287 |
+| `fact_valoracion.csv` | 47.443 |
+| `fact_lectura.csv` | 1.160.547 |
+| `resumen_valoraciones_anio.csv` | 9 |
+
+## 🔧 Requisitos
+
+- Java 17
+- Python 3.11 o superior
+- PySpark 4.3.0 (`pip install -r requirements.txt`)
+
+`ejecutar_todo.sh` busca Java y Hadoop en las rutas habituales y usa cualquier venv que tenga PySpark. Si el tuyo está en otra ruta:
+
+```bash
+OL_JAVA_HOME=/ruta/jdk OL_HADOOP_HOME=/ruta/hadoop OL_VENV=/ruta/venv bash ejecutar_todo.sh
+```
+
+También puedes ejecutar los pasos por separado, siempre en este orden:
+
+```bash
+python3 etl/01_bronze.py
+python3 etl/02_silver.py
+python3 etl/03_gold.py
+```
+
+> Los avisos de PySpark sobre pandas, librerías nativas de Hadoop y ventanas sin partición son informativos; el pipeline termina correctamente.
+
+## 🧹 Qué cambió respecto al curso original
+
+Se eliminaron las partes que no eran necesarias para este objetivo: HDFS, PostgreSQL, DDL/SQL, consultas, ejercicios, proyecto final, dumps comprimidos y caché de API. El historial de Git conserva todo eso si se necesita recuperarlo.
+
+Lo que queda es un pipeline corto, reproducible y explicado: **CSV → bronze → silver → gold**.

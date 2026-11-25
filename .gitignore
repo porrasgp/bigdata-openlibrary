@@ -1,23 +1,16 @@
-# Datos grandes: nunca se suben al repositorio (data/README.md sí, ver abajo)
+# Salidas generadas por el ETL (se pueden regenerar con ejecutar_todo.sh)
 data/*
-*.txt.gz
+!data/README.md
 
-# Salidas de Spark y HDFS locales
+# Python
+__pycache__/
+*.pyc
+.venv/
+.ipynb_checkpoints/
+
+# Spark / Java
 spark-warehouse/
 metastore_db/
 derby.log
-*.crc
-_SUCCESS
-
-# Python
-.venv/
-__pycache__/
-*.pyc
-.ipynb_checkpoints/
-
-# Java / Hadoop locales
 *.log
 hadoop-*/
-
-# Excepción: este README sí se publica
-!data/README.md
