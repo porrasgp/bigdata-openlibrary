@@ -20,8 +20,8 @@ bash ejecutar_todo_completo.sh
 
 `ejecutar_todo_completo.sh` hace, en orden:
 
-1. Detectar Java, Hadoop y binarios de PostgreSQL; crear el venv con `pyspark` + `psycopg` si falta.
-2. Preparar HDFS y PostgreSQL: rutas, rol/base y servicios; arrancar lo que haga falta.
+1. Detectar o instalar Java 17, Hadoop 3.5 y los binarios de PostgreSQL; crear el venv con `pyspark` + `psycopg` si falta.
+2. Preparar HDFS y PostgreSQL: configuración base, rutas, rol/base y servicios; arrancar lo que haga falta.
 3. `etl/01_bronze.py`, `etl/02_silver.py`, `etl/03_gold.py`.
 4. `hdfs/cargar_gold.sh` → `/medallion/gold/fecha=FECHA/`.
 5. `postgres/cargar_gold.py --reiniciar` → esquema `estrella`.
@@ -122,18 +122,21 @@ Después, HDFS guarda el gold particionado por fecha y PostgreSQL lo carga con P
 
 ## Requisitos
 
-- Java 17.
-- Hadoop 3.5 (para el cliente HDFS; las rutas del ETL son `file://`).
+- Java 17: se instala Amazon Corretto 17 si no existe.
+- Hadoop 3.5 (para el cliente HDFS; las rutas del ETL son `file://`): se descarga y configura solo.
 - Python 3.11+; el orquestador crea el venv e instala `requirements.txt` si hace falta.
-- PostgreSQL accesible por `PGHOST`/`PGPORT`/`PGUSER`/`PGDATABASE`; si no hay `PGDATA`, se inicializa solo.
+- PostgreSQL accesible por `PGHOST`/`PGPORT`/`PGUSER`/`PGDATABASE`; si no hay binarios se instalan con `pgserver`, y si no hay `PGDATA` se inicializa solo.
 - `reportlab` (incluido en `requirements.txt`) solo para regenerar el PDF con `bash manual/generar_pdf.sh`.
 - pgAdmin 4 `9.18` opcional para explorar PostgreSQL en `http://127.0.0.1:5050/`; instalación paso a paso en el manual, sección 3.1.
 
 Rutas personalizadas:
 
 ```bash
-OL_JAVA_HOME=/ruta/jdk OL_HADOOP_HOME=/ruta/hadoop \
-OL_VENV=/ruta/venv OL_PGBIN=/ruta/pg/bin OL_PGDATA=/ruta/pgdata \
+OL_TOOLS_DIR=/ruta/herramientas \
+OL_JAVA_HOME=/ruta/jdk OL_JAVA_URL=https://.../jdk.tar.gz \
+OL_HADOOP_HOME=/ruta/hadoop OL_HADOOP_URL=https://.../hadoop.tar.gz \
+OL_VENV=/ruta/venv OL_PGVENV=/ruta/venv-pgtest \
+OL_PGBIN=/ruta/pg/bin OL_PGDATA=/ruta/pgdata \
 OL_PGADMIN=postgres OL_HDFS_DATA_DIR=/ruta/hdfs \
 bash ejecutar_todo_completo.sh
 ```

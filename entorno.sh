@@ -3,33 +3,124 @@
 # Uso: source entorno.sh   (define funciones; no ejecuta nada por sí sola)
 #
 # Las funciones ol_detectar_* y ol_asegurar_* sí pueden crear lo que falte:
+#   - Java 17 y Hadoop 3.5 (descarga si no están instalados),
 #   - venv con los módulos pedidos (instala requirements.txt del proyecto),
+#   - binarios de PostgreSQL mediante pgserver si no hay psql,
 #   - PGDATA inicializado si no existe,
 #   - rol y base de datos PostgreSQL,
 #   - directorios de NameNode/DataNode y formato del NameNode sin metadata previa.
 #
-# Variables de override: OL_JAVA_HOME, OL_HADOOP_HOME, OL_HADOOP_CONF_DIR,
-# OL_VENV, OL_PGBIN, OL_PGDATA, OL_PGADMIN, OL_PGSOCKET, OL_HDFS_DATA_DIR.
+# Variables de override: OL_TOOLS_DIR, OL_JAVA_HOME, OL_JAVA_URL,
+# OL_HADOOP_HOME, OL_HADOOP_CONF_DIR, OL_HADOOP_URL, OL_VENV, OL_PGVENV,
+# OL_PGBIN, OL_PGDATA, OL_PGADMIN, OL_PGSOCKET, OL_HDFS_DATA_DIR.
 
 OL_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-ol_detectar_java() {
-  if [[ -z "${JAVA_HOME:-}" || ! -x "${JAVA_HOME:-/}/bin/java" ]]; then
-    if command -v java >/dev/null 2>&1; then
-      JAVA_HOME="$(dirname "$(dirname "$(readlink -f "$(command -v java)")")")"
-    else
-        for cand in \
-          "${OL_JAVA_HOME:-}" \
-          "$HOME/Desktop"/opt/jdk-* \
-          "$HOME"/opt/jdk-* \
-          "$HOME/.jdk"/jdk-* \
-          "$HOME"/jdk-*; do
-        [[ -n "$cand" && -x "$cand/bin/java" ]] && { JAVA_HOME="$cand"; break; }
-      done
-    fi
+OL_TOOLS_DIR="${OL_TOOLS_DIR:-}"
+if [[ -z "$OL_TOOLS_DIR" ]]; then
+  if [[ -d "$HOME/Desktop" ]]; then
+    OL_TOOLS_DIR="$HOME/Desktop/opt"
+  else
+    OL_TOOLS_DIR="$HOME/opt"
   fi
-  [[ -n "${JAVA_HOME:-}" && -x "$JAVA_HOME/bin/java" ]] || {
-    echo "No encuentro Java 17 (usa OL_JAVA_HOME=/ruta/al/jdk)" >&2
+fi
+
+ol_descargar() {
+  local url="$1" dest="$2"
+  command -v curl >/dev/null 2>&1 || {
+    echo "Falta curl para descargar $url" >&2
+    return 1
+  }
+  echo "Descargando $url..."
+  curl -fL --retry 3 -o "$dest" "$url" || return 1
+}
+
+ol_enlazar_herramienta() {
+  local patron="$1" dest="$2" extraida
+  extraida=$(find "$(dirname "$dest")" -maxdepth 1 -type d -name "$patron" 2>/dev/null \
+    | sort -V | tail -n 1)
+  [[ -n "$extraida" ]] || return 1
+  ln -sfn "$extraida" "$dest"
+}
+
+ol_instalar_java() {
+  local dest="$OL_TOOLS_DIR/jdk"
+  local url="${OL_JAVA_URL:-https://corretto.aws/downloads/latest/amazon-corretto-17-x64-linux-jdk.tar.gz}"
+  local tmp="/tmp/opencode/jdk-17.tar.gz"
+  mkdir -p "$OL_TOOLS_DIR" /tmp/opencode
+  echo "No hay Java 17: instalando Amazon Corretto 17 (~185 MB)..."
+  ol_descargar "$url" "$tmp" || return 1
+  tar -xzf "$tmp" -C "$OL_TOOLS_DIR" || return 1
+  ol_enlazar_herramienta 'amazon-corretto-17*' "$dest" || return 1
+  rm -f "$tmp"
+}
+
+ol_configurar_hadoop_base() {
+  local conf="$1/etc/hadoop"
+  mkdir -p "$conf"
+  if [[ ! -s "$conf/core-site.xml" ]]; then
+    cat > "$conf/core-site.xml" <<'XML'
+<configuration>
+  <property><name>fs.defaultFS</name><value>hdfs://localhost:8020</value></property>
+</configuration>
+XML
+  fi
+  if [[ ! -s "$conf/hdfs-site.xml" ]]; then
+    cat > "$conf/hdfs-site.xml" <<XML
+<configuration>
+  <property><name>dfs.replication</name><value>1</value></property>
+  <property><name>dfs.namenode.name.dir</name><value>file://$HOME/hdfs/namenode</value></property>
+  <property><name>dfs.datanode.data.dir</name><value>file://$HOME/hdfs/datanode</value></property>
+</configuration>
+XML
+  fi
+}
+
+ol_instalar_hadoop() {
+  local dest="$OL_TOOLS_DIR/hadoop"
+  local url="${OL_HADOOP_URL:-https://archive.apache.org/dist/hadoop/common/hadoop-3.5.0/hadoop-3.5.0.tar.gz}"
+  local tmp="/tmp/opencode/hadoop-3.5.0.tar.gz"
+  local extraida
+  mkdir -p "$OL_TOOLS_DIR" /tmp/opencode
+  echo "No hay Hadoop: instalando Hadoop 3.5.0 (~555 MB)..."
+  ol_descargar "$url" "$tmp" || return 1
+  tar -xzf "$tmp" -C "$OL_TOOLS_DIR" || return 1
+  extraida=$(find "$OL_TOOLS_DIR" -maxdepth 1 -type d -name 'hadoop-3.*' 2>/dev/null \
+    | sort -V | tail -n 1)
+  [[ -n "$extraida" ]] || return 1
+  ln -sfn "$extraida" "$dest"
+  ol_configurar_hadoop_base "$extraida"
+  rm -f "$tmp"
+}
+
+ol_detectar_java() {
+  local encontrado=""
+
+  if [[ -n "${JAVA_HOME:-}" && -x "${JAVA_HOME:-/}/bin/java" ]]; then
+    encontrado="$JAVA_HOME"
+  fi
+  if [[ -z "$encontrado" ]]; then
+    for cand in \
+      "${OL_JAVA_HOME:-}" \
+      "$OL_TOOLS_DIR/jdk" \
+      "$OL_TOOLS_DIR"/jdk-* \
+      "$HOME"/opt/jdk-* \
+      "$HOME/.jdk"/jdk-* \
+      "$HOME"/jdk-*; do
+      [[ -n "$cand" && -x "$cand/bin/java" ]] && { encontrado="$cand"; break; }
+    done
+  fi
+  if [[ -z "$encontrado" ]] && command -v java >/dev/null 2>&1; then
+    encontrado="$(dirname "$(dirname "$(readlink -f "$(command -v java)")")")"
+  fi
+  if [[ -z "$encontrado" ]]; then
+    ol_instalar_java || return 1
+    encontrado="$OL_TOOLS_DIR/jdk"
+  fi
+
+  JAVA_HOME="$encontrado"
+  [[ -x "$JAVA_HOME/bin/java" ]] || {
+    echo "No pude instalar Java 17 (usa OL_JAVA_URL=/ruta/al/jdk.tar.gz)" >&2
     return 1
   }
   export JAVA_HOME
@@ -37,19 +128,32 @@ ol_detectar_java() {
 }
 
 ol_detectar_hadoop() {
-  if [[ -z "${HADOOP_HOME:-}" || ! -x "${HADOOP_HOME:-/}/bin/hdfs" ]]; then
+  local encontrado=""
+
+  if [[ -n "${HADOOP_HOME:-}" && -x "${HADOOP_HOME:-/}/bin/hdfs" ]]; then
+    encontrado="$HADOOP_HOME"
+  fi
+  if [[ -z "$encontrado" ]]; then
     for cand in \
       "${OL_HADOOP_HOME:-}" \
-      "$HOME/Desktop"/opt/hadoop-* \
+      "$OL_TOOLS_DIR/hadoop" \
+      "$OL_TOOLS_DIR"/hadoop-* \
       "$HOME"/opt/hadoop-* \
       "$HOME"/hadoop-*; do
-      [[ -n "$cand" && -x "$cand/bin/hdfs" ]] && { HADOOP_HOME="$cand"; break; }
+      [[ -n "$cand" && -x "$cand/bin/hdfs" ]] && { encontrado="$cand"; break; }
     done
   fi
-  [[ -n "${HADOOP_HOME:-}" && -x "$HADOOP_HOME/bin/hdfs" ]] || {
-    echo "No encuentro Hadoop (usa OL_HADOOP_HOME=/ruta/al/hadoop)" >&2
+  if [[ -z "$encontrado" ]]; then
+    ol_instalar_hadoop || return 1
+    encontrado="$OL_TOOLS_DIR/hadoop"
+  fi
+
+  HADOOP_HOME="$encontrado"
+  [[ -x "$HADOOP_HOME/bin/hdfs" ]] || {
+    echo "No pude instalar Hadoop (usa OL_HADOOP_URL=/ruta/hadoop.tar.gz)" >&2
     return 1
   }
+  ol_configurar_hadoop_base "$HADOOP_HOME"
   HADOOP_CONF_DIR="${OL_HADOOP_CONF_DIR:-$HADOOP_HOME/etc/hadoop}"
   export HADOOP_HOME HADOOP_CONF_DIR
   export HADOOP_HOME_WARN_SUPPRESS=1
@@ -116,6 +220,24 @@ ol_detectar_venv() {
   export PYSPARK_DRIVER_PYTHON="$VENV/bin/python3"
 }
 
+ol_instalar_pg() {
+  local venv
+  if [[ -d "$HOME/Desktop" ]]; then
+    venv="${OL_PGVENV:-$HOME/Desktop/venv-pgtest}"
+  else
+    venv="${OL_PGVENV:-$HOME/venv-pgtest}"
+  fi
+  local cand
+  echo "No hay psql: instalando binarios de PostgreSQL mediante pgserver..."
+  python3 -m venv "$venv" || return 1
+  "$venv/bin/python3" -m pip install --upgrade pip >/dev/null 2>&1 || true
+  "$venv/bin/python3" -m pip install pgserver || return 1
+  for cand in "$venv"/lib/python*/site-packages/pgserver/pginstall/bin; do
+    if [[ -x "$cand/psql" ]]; then PGBIN="$cand"; return 0; fi
+  done
+  return 1
+}
+
 ol_detectar_pg() {
   PGBIN="${OL_PGBIN:-}"
   if [[ -z "$PGBIN" || ! -x "$PGBIN/psql" ]]; then
@@ -129,10 +251,12 @@ ol_detectar_pg() {
       done
     fi
   fi
-  [[ -n "${PGBIN:-}" && -x "$PGBIN/psql" ]] || {
-    echo "No encuentro psql (usa OL_PGBIN=/ruta/al/bin)" >&2
-    return 1
-  }
+  if [[ -z "${PGBIN:-}" || ! -x "$PGBIN/psql" ]]; then
+    ol_instalar_pg || {
+      echo "No encuentro ni pude instalar psql (usa OL_PGBIN=/ruta/al/bin)" >&2
+      return 1
+    }
+  fi
 
   PGUSER="${PGUSER:-${USER:-$(id -un)}}"
   PGHOST="${PGHOST:-localhost}"

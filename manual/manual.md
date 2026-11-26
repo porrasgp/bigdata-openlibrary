@@ -76,11 +76,11 @@ Objetivo de cada capa:
 
 Necesitas:
 
-- Java 17.
-- Hadoop 3.5 con `core-site.xml` y `hdfs-site.xml` en `$HADOOP_HOME/etc/hadoop`.
+- Java 17: se instala Amazon Corretto 17 si no esta presente.
+- Hadoop 3.5: se descarga Hadoop 3.5.0 y se generan `core-site.xml` y `hdfs-site.xml` en `$HADOOP_HOME/etc/hadoop` si faltan.
 - Python 3.11 o superior.
-- PySpark 4.3.0 y psycopg 3.3.8.
-- PostgreSQL 16 (o compatible) con un usuario y una base de datos.
+- PySpark 4.3.0 y psycopg 3.3.8: el venv se crea solo con `requirements.txt`.
+- PostgreSQL 16 (o compatible): los binarios se instalan mediante `pgserver` si no hay `psql`; la base y el rol se crean solos.
 - pgAdmin 4 (opcional) si quieres explorar PostgreSQL desde el navegador; se instala aparte en su propio venv (sección 3.1).
 - Python con `reportlab` solo si quieres regenerar este PDF.
 
@@ -103,13 +103,17 @@ reportlab==5.1.0
 
 ## 3. Preparación del entorno
 
-Los scripts detectan Java, Hadoop, el venv y los binarios de PostgreSQL de forma automática, y preparan lo que falte: venv, PGDATA, rol/base y directorios HDFS. Si tu instalación está en otras rutas, usa variables de override:
+Los scripts detectan Java, Hadoop, el venv y los binarios de PostgreSQL de forma automática. Si falta algo, lo instalan: Java (Amazon Corretto 17), Hadoop 3.5.0, venv con `requirements.txt`, binarios PostgreSQL mediante `pgserver`, PGDATA, rol/base y directorios HDFS. Las descargas se guardan en `$HOME/Desktop/opt` (o `$HOME/opt` si no existe Desktop). Si tu instalación está en otras rutas, usa variables de override:
 
 ```bash
 # Ejemplos: solo si tus rutas son distintas; NO copies estos valores tal cual.
+# export OL_TOOLS_DIR=/ruta/a/herramientas
 # export OL_JAVA_HOME=/ruta/al/jdk-17
+# export OL_JAVA_URL=https://.../jdk.tar.gz
 # export OL_HADOOP_HOME=/ruta/al/hadoop-3.5.0
+# export OL_HADOOP_URL=https://.../hadoop.tar.gz
 # export OL_VENV=/ruta/al/venv
+# export OL_PGVENV=/ruta/al/venv-pgtest
 # export OL_PGBIN=/ruta/al/postgresql/bin
 # export OL_PGDATA=/ruta/al/pgdata
 # export OL_PGADMIN=postgres
@@ -407,8 +411,8 @@ bash ejecutar_todo_completo.sh
 
 Hace exactamente esto, en orden:
 
-1. Detectar Java, Hadoop y binarios de PostgreSQL; crear el venv con `pyspark` y `psycopg` si falta.
-2. Preparar las rutas de HDFS, formatear si no hay metadata y arrancar NameNode y DataNode.
+1. Detectar o instalar Java 17, Hadoop 3.5 y los binarios de PostgreSQL; crear el venv con `pyspark` y `psycopg` si falta.
+2. Generar la configuración base de Hadoop si hace falta; preparar las rutas de HDFS, formatear si no hay metadata y arrancar NameNode y DataNode.
 3. Preparar PGDATA, arrancar PostgreSQL y crear el rol y la base si faltan.
 4. `bash ejecutar_todo.sh` (bronze → silver → gold).
 5. `bash hdfs/cargar_gold.sh FECHA`.
